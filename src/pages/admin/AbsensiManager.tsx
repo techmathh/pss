@@ -6,6 +6,9 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { startOfWeek, endOfWeek, startOfMonth, endOfMonth, format, parseISO, isWithinInterval } from 'date-fns';
 import { id } from 'date-fns/locale';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
+import { auth } from '../../lib/firebase';
 
 function getLocalTodayStr() {
   const d = new Date();
@@ -19,6 +22,11 @@ export default function AbsensiManager() {
   const [anggotaList, setAnggotaList] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+
+  // Catatan Harian State
+  const [catatan, setCatatan] = useState('');
+  const [savingCatatan, setSavingCatatan] = useState(false);
+  const [loadingCatatan, setLoadingCatatan] = useState(false);
 
   // Export Modal State
   const [showExportModal, setShowExportModal] = useState(false);
@@ -38,11 +46,58 @@ export default function AbsensiManager() {
     loadInitData();
   }, []);
 
-  const loadInitData = async () => {
+  useEffect(() => {
+    loadCatatan(tanggal);
+  }, [tanggal]);
+
+  const loadCatatan = async (dateStr: string) => {
+    setLoadingCatatan(true);
+    setCatatan('');
+    try {
+      const docRef = doc(db, 'absensi_notes', dateStr);
+      const docSnap = await getDoc(docRef);
+      if (docSnap.exists()) {
+        setCatatan(docSnap.data().note || '');
+      }
+    } catch (error) {
+      console.error("Error loading catatan", error);
+    }
+    setLoadingCatatan(false);
+  };
+
+  const handleSaveCatatan = async () => {
+    setSavingCatatan(true);
+    try {
+      const docRef = doc(db, 'absensi_notes', tanggal);
+      await setDoc(docRef, {
+        date: tanggal,
+        note: catatan,
+        updatedAt: Date.now(),
+        updatedBy: auth.currentUser?.uid || ''
+      });
+      Swal.fire({
+        title: 'Tersimpan',
+        text: 'Catatan hari ini berhasil disimpan.',
+        icon: 'success',
+        toast: true,
+        position: 'top-end',
+        showConfirmButton: false,
+        timer: 1500
+      });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, 'absensi_notes');
+      Swal.fire('Error', 'Gagal menyimpan catatan', 'error');
+    }
+    setSavingCatatan(false);
+  };
+
+  const loadInitData = async (forceRefresh = false) => {
     setLoading(true);
     try {
-      const absensi = await fetchAllAbsensiData();
-      const anggota = await fetchAnggotaData();
+      const [absensi, anggota] = await Promise.all([
+        fetchAllAbsensiData(forceRefresh),
+        fetchAnggotaData(forceRefresh)
+      ]);
       
       setAllAbsensi(absensi);
       setAnggotaList(anggota);
@@ -62,7 +117,7 @@ export default function AbsensiManager() {
     return rowDate === tanggal;
   });
 
-  const handleTambahAbsensi = async (e: React.FormEvent) => {
+  const handleTambahAbsensi = async (e: React.FormEvent, nextAnggota: boolean = false) => {
     e.preventDefault();
     if (!inputAnggota) {
       Swal.fire('Perhatian', 'Pilih anggota terlebih dahulu.', 'warning');
@@ -85,9 +140,38 @@ export default function AbsensiManager() {
       });
 
       if (res.success) {
-        Swal.fire('Berhasil', 'Absensi disimpan.', 'success');
+        Swal.fire({
+          title: 'Berhasil', 
+          text: 'Absensi disimpan.', 
+          icon: 'success',
+          toast: true,
+          position: 'top-end',
+          showConfirmButton: false,
+          timer: 1500
+        });
+        
         setInputKeterangan('');
-        loadInitData();
+        
+        // Auto-select next person for quick input
+        if (nextAnggota) {
+          const currentIndex = anggotaList.findIndex(a => String(a.id) === String(inputAnggota));
+          if (currentIndex !== -1 && currentIndex < anggotaList.length - 1) {
+            setInputAnggota(anggotaList[currentIndex + 1].id);
+          } else if (anggotaList.length > 0) {
+            // Loop back to first or show message if at end
+            Swal.fire({
+              title: 'Selesai', 
+              text: 'Semua anggota telah diabsen.', 
+              icon: 'info',
+              toast: true,
+              position: 'top-end',
+              showConfirmButton: false,
+              timer: 2000
+            });
+          }
+        }
+        
+        loadInitData(true);
       } else {
         Swal.fire('Gagal', res.message || 'Gagal menyimpan.', 'error');
       }
@@ -311,16 +395,18 @@ export default function AbsensiManager() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-bold uppercase tracking-widest text-slate-400 mb-1">Anggota</label>
-                <select 
-                  value={inputAnggota} 
-                  onChange={e => setInputAnggota(e.target.value)}
-                  className="w-full bg-[#0f1115] border border-[#1e2330] rounded-lg px-4 py-2 text-white focus:outline-none focus:border-blue-500 transition-colors text-sm"
-                  required
-                >
-                  {anggotaList.map(a => (
-                    <option key={a.id} value={a.id}>{a.nama}</option>
-                  ))}
-                </select>
+                <div className="flex gap-2">
+                  <select 
+                    value={inputAnggota} 
+                    onChange={e => setInputAnggota(e.target.value)}
+                    className="flex-1 bg-[#0f1115] border border-[#1e2330] rounded-lg px-4 py-2 text-white focus:outline-none focus:border-blue-500 transition-colors text-sm"
+                    required
+                  >
+                    {anggotaList.map(a => (
+                      <option key={a.id} value={a.id}>{a.nama}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
               <div>
                 <label className="block text-xs font-bold uppercase tracking-widest text-slate-400 mb-1">Tanggal</label>
@@ -337,16 +423,12 @@ export default function AbsensiManager() {
             <div className="grid grid-cols-1 gap-4">
               <div>
                 <label className="block text-xs font-bold uppercase tracking-widest text-slate-400 mb-1">Status</label>
-                <select 
-                  value={inputStatus} 
-                  onChange={e => setInputStatus(e.target.value)}
-                  className="w-full bg-[#0f1115] border border-[#1e2330] rounded-lg px-4 py-2 text-white focus:outline-none focus:border-blue-500 transition-colors text-sm"
-                >
-                  <option>Hadir</option>
-                  <option>Izin</option>
-                  <option>Sakit</option>
-                  <option>Alpha</option>
-                </select>
+                <div className="flex flex-wrap gap-2 mb-2">
+                  <button type="button" onClick={() => setInputStatus('Hadir')} className={`flex-1 py-1.5 px-3 rounded text-xs font-bold transition-colors ${inputStatus === 'Hadir' ? 'bg-green-500/20 text-green-400 border border-green-500/50' : 'bg-[#0f1115] border border-[#1e2330] text-slate-400 hover:bg-white/5'}`}>Hadir</button>
+                  <button type="button" onClick={() => setInputStatus('Izin')} className={`flex-1 py-1.5 px-3 rounded text-xs font-bold transition-colors ${inputStatus === 'Izin' ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/50' : 'bg-[#0f1115] border border-[#1e2330] text-slate-400 hover:bg-white/5'}`}>Izin</button>
+                  <button type="button" onClick={() => setInputStatus('Sakit')} className={`flex-1 py-1.5 px-3 rounded text-xs font-bold transition-colors ${inputStatus === 'Sakit' ? 'bg-orange-500/20 text-orange-400 border border-orange-500/50' : 'bg-[#0f1115] border border-[#1e2330] text-slate-400 hover:bg-white/5'}`}>Sakit</button>
+                  <button type="button" onClick={() => setInputStatus('Alpha')} className={`flex-1 py-1.5 px-3 rounded text-xs font-bold transition-colors ${inputStatus === 'Alpha' ? 'bg-red-500/20 text-red-400 border border-red-500/50' : 'bg-[#0f1115] border border-[#1e2330] text-slate-400 hover:bg-white/5'}`}>Alpha</button>
+                </div>
               </div>
             </div>
 
@@ -361,14 +443,26 @@ export default function AbsensiManager() {
               />
             </div>
 
-            <button
-              type="submit"
-              disabled={submitting || !inputAnggota}
-              className="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2.5 rounded-lg font-bold text-sm transition-colors disabled:opacity-50"
-            >
-              <Save size={18} />
-              {submitting ? 'Menyimpan...' : 'Simpan Absensi'}
-            </button>
+            <div className="flex gap-3 pt-2">
+              <button
+                type="button"
+                onClick={(e) => handleTambahAbsensi(e as any, true)}
+                disabled={submitting || !inputAnggota}
+                className="flex-1 flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2.5 rounded-lg font-bold text-sm transition-colors disabled:opacity-50"
+              >
+                <Save size={18} />
+                {submitting ? 'Menyimpan...' : 'Simpan & Lanjut Cepat'}
+              </button>
+              <button
+                type="button"
+                onClick={(e) => handleTambahAbsensi(e as any, false)}
+                disabled={submitting || !inputAnggota}
+                className="flex-none flex items-center justify-center gap-2 bg-[#1e2330] hover:bg-slate-700 text-white px-4 py-2.5 rounded-lg font-bold text-sm transition-colors disabled:opacity-50"
+                title="Simpan tanpa pindah anggota"
+              >
+                Simpan
+              </button>
+            </div>
           </form>
         </div>
 
@@ -441,6 +535,29 @@ export default function AbsensiManager() {
             >
               <Download size={16} />
               <span className="hidden sm:inline">Export Data</span>
+            </button>
+          </div>
+        </div>
+
+        <div className="p-6 bg-[#0c0e12] border-b border-[#1e2330]">
+          <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+            <div className="flex-1 w-full">
+              <label className="block text-xs font-bold uppercase tracking-widest text-slate-400 mb-1">Catatan Harian (Opsional)</label>
+              <input 
+                type="text" 
+                value={catatan}
+                onChange={e => setCatatan(e.target.value)}
+                placeholder="Cth: Hari ini libur karena perayaan hari besar..."
+                className="w-full bg-[#131722] border border-[#1e2330] rounded-lg px-4 py-2 text-white focus:outline-none focus:border-indigo-500 transition-colors text-sm"
+              />
+            </div>
+            <button
+              onClick={handleSaveCatatan}
+              disabled={savingCatatan || loadingCatatan}
+              className="w-full sm:w-auto mt-5 flex items-center justify-center gap-2 bg-[#1e2330] hover:bg-slate-700 text-white px-4 py-2 rounded-lg font-bold text-sm transition-colors disabled:opacity-50 whitespace-nowrap"
+            >
+              <Save size={16} />
+              {savingCatatan ? 'Menyimpan...' : 'Simpan Catatan'}
             </button>
           </div>
         </div>

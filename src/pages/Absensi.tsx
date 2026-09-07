@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import Layout from '../components/ui/Layout';
 import { fetchAllAbsensiData, fetchAnggotaData } from '../lib/absensi';
-import { Search, Calendar, Filter, CheckCircle2, UserX, UserMinus, AlertCircle } from 'lucide-react';
+import { Search, Calendar, Filter, CheckCircle2, UserX, UserMinus, AlertCircle, Info } from 'lucide-react';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '../lib/firebase';
 
 function getLocalTodayStr() {
   const d = new Date();
@@ -24,17 +26,37 @@ export default function Absensi() {
   const [allAbsensi, setAllAbsensi] = useState<any[]>([]);
   const [allAnggota, setAllAnggota] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [catatan, setCatatan] = useState('');
 
   useEffect(() => {
     loadInitialData();
   }, []);
 
-  const loadInitialData = async () => {
+  useEffect(() => {
+    const fetchCatatan = async () => {
+      try {
+        const docRef = doc(db, 'absensi_notes', tanggal);
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+          setCatatan(docSnap.data().note || '');
+        } else {
+          setCatatan('');
+        }
+      } catch (e) {
+        console.error("Error loading catatan", e);
+        setCatatan('');
+      }
+    };
+    fetchCatatan();
+  }, [tanggal]);
+
+  const loadInitialData = async (forceRefresh = false) => {
     setLoading(true);
     try {
-      // Fetch all data once sequentially to avoid Google Sheets API concurrent limits
-      const resData = await fetchAllAbsensiData();
-      const resAnggota = await fetchAnggotaData();
+      const [resData, resAnggota] = await Promise.all([
+        fetchAllAbsensiData(forceRefresh),
+        fetchAnggotaData(forceRefresh)
+      ]);
       setAllAbsensi(resData);
       setAllAnggota(resAnggota);
     } catch (e) {
@@ -133,14 +155,23 @@ export default function Absensi() {
           </div>
 
           <div className="flex flex-col md:flex-row gap-4 mb-6 bg-[#131722] p-4 border border-white/5 rounded-2xl shadow-lg">
-            <div className="relative w-full md:w-auto md:min-w-[200px]">
-              <Calendar size={16} className="absolute left-4 top-3.5 text-slate-400" />
-              <input 
-                type="date" 
-                value={tanggal} 
-                onChange={(e) => setTanggal(e.target.value)}
-                className="w-full bg-[#0c0e12] border border-white/5 text-white rounded-xl pl-10 pr-4 py-3 text-sm focus:outline-none focus:border-red-500 transition-colors"
-              />
+            <div className="flex gap-2 w-full md:w-auto md:min-w-[250px]">
+              <div className="relative flex-1">
+                <Calendar size={16} className="absolute left-4 top-3.5 text-slate-400" />
+                <input 
+                  type="date" 
+                  value={tanggal} 
+                  onChange={(e) => setTanggal(e.target.value)}
+                  className="w-full bg-[#0c0e12] border border-white/5 text-white rounded-xl pl-10 pr-4 py-3 text-sm focus:outline-none focus:border-red-500 transition-colors"
+                />
+              </div>
+              <button 
+                onClick={() => loadInitialData(true)}
+                className="bg-[#0c0e12] border border-white/5 px-4 rounded-xl hover:bg-white/5 transition-colors text-slate-400 group flex-none"
+                title="Sinkronisasi Data"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`group-hover:text-white transition-colors ${loading ? 'animate-spin text-red-500' : ''}`}><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>
+              </button>
             </div>
             
             <div className="relative flex-1">

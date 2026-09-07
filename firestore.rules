@@ -115,6 +115,14 @@ service cloud.firestore {
              data.createdAt is number;
     }
 
+    function isValidAbsensiNote(data) {
+      return data.keys().hasAll(['date', 'note', 'updatedAt']) &&
+             data.date is string && data.date.size() > 0 && data.date.size() <= 20 &&
+             data.note is string && data.note.size() <= 2000 &&
+             data.updatedAt is number &&
+             (data.get('updatedBy', '') is string && data.get('updatedBy', '').size() <= 128);
+    }
+
     // Rules
     match /users/{userId} {
       allow read: if isAuthenticated() && (isAdmin() || request.auth.uid == userId);
@@ -193,6 +201,13 @@ service cloud.firestore {
       allow read: if true;
       allow create: if isManager() && isValidId(galleryId) && isValidGallery(incoming());
       allow update: if isManager() && isValidGallery(incoming());
+      allow delete: if isManager();
+    }
+
+    match /absensi_notes/{date} {
+      allow read: if true;
+      allow create: if isManager() && isValidId(date) && isValidAbsensiNote(incoming());
+      allow update: if isManager() && isValidAbsensiNote(incoming());
       allow delete: if isManager();
     }
   }

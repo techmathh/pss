@@ -80,9 +80,25 @@
         "updatedAt": { "type": "number" }
       },
       "required": ["title", "body", "type", "updatedAt"]
+    },
+    "AbsensiNote": {
+      "title": "Absensi Note",
+      "description": "Daily notes/holiday remarks for a specific date",
+      "type": "object",
+      "properties": {
+        "date": { "type": "string" },
+        "note": { "type": "string" },
+        "updatedAt": { "type": "number" },
+        "updatedBy": { "type": "string" }
+      },
+      "required": ["date", "note", "updatedAt"]
     }
   },
   "firestore": {
+    "/absensi_notes/{date}": {
+      "schema": { "$ref": "#/entities/AbsensiNote" },
+      "description": "Stores daily attendance notes (like holidays) keyed by YYYY-MM-DD"
+    },
     "/users/{userId}": {
       "schema": { "$ref": "#/entities/User" },
       "description": "Stores user profiles and roles"
