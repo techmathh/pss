@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Pencak Silat SMAN 1 Kemangkon</title>
+    <meta name="description" content="Website resmi ekstrakurikuler Pencak Silat SMAN 1 KEMANGKON..." />
+    <meta name="keywords" content="Pencak Silat SMAN 1 KEMANGKON, Jadwal latihan silat SMAN 1 KEMANGKON, Cara daftar ekskul silat SMAN 1 KEMANGKON, Prestasi pencak silat SMAN 1 KEMANGKON, Ekstrakurikuler, Bela Diri" />
+    <meta name="author" content="Pencak Silat SMAN 1 KEMANGKON" />
+    <link rel="icon" href="/favicon.ico" type="image/x-icon">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preconnect" href="https://firestore.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" fetchpriority="high">
+    <script>
+      document.addEventListener('contextmenu', event => event.preventDefault());
+      document.onkeydown = function(e) {
+        if(e.keyCode == 123 || 
+          (e.ctrlKey && e.shiftKey && (e.keyCode == 'I'.charCodeAt(0) || e.keyCode == 'C'.charCodeAt(0) || e.keyCode == 'J'.charCodeAt(0))) || 
+          (e.ctrlKey && e.keyCode == 'U'.charCodeAt(0))) {
+          return false;
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <div id="root">
+      <style>
+        .splash-screen {
+          position: fixed;
+          top: 0; left: 0; width: 100vw; height: 100vh;
+          background-color: #0c0e12;
+          display: flex; flex-direction: column;
+          align-items: center; justify-content: center;
+          z-index: 99999;
+          font-family: system-ui, -apple-system, sans-serif;
+        }
+        .splash-spinner {
+          width: 50px; height: 50px;
+          border: 3px solid rgba(255, 255, 255, 0.1);
+          border-top-color: #dc2626;
+          border-radius: 50%;
+          animation: splash-spin 1s ease-in-out infinite;
+          margin-bottom: 20px;
+        }
+        @keyframes splash-spin {
+          to { transform: rotate(360deg); }
+        }
+      </style>
+      <div class="splash-screen">
+        <div class="splash-spinner"></div>
+      </div>
+    </div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+

@@ -1,0 +1,199 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default Deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Global Helpers
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+    function isSignedIn() { return request.auth != null && request.auth.token.email_verified == true; }
+    
+    function isAuthenticated() { return request.auth != null; }
+
+    function isDevEmail() {
+      return request.auth != null && request.auth.token.email == 'dapiddev@admin.com';
+    }
+
+    function getUserRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && (isDevEmail() || getUserRole() == 'admin' || getUserRole() == 'developer');
+    }
+
+    function isManager() {
+      return isAuthenticated() && (isAdmin() || getUserRole() == 'pengurus');
+    }
+
+    // Validation Helpers
+    function isValidUser(data) {
+      return data.keys().hasAll(['email', 'role', 'createdAt']) && 
+             data.email is string && data.email.size() <= 100 &&
+             data.role is string && data.role in ['developer', 'admin', 'pengurus', 'anggota', 'guest'] &&
+             data.createdAt is number &&
+             (data.get('displayName', '') is string && data.get('displayName', '').size() <= 100) &&
+             (data.get('updatedAt', 0) is number);
+    }
+
+    function isValidRegistration(data) {
+      return data.keys().hasAll(['fullName', 'grade', 'section', 'whatsapp', 'email', 'reason', 'status', 'createdAt']) &&
+             data.fullName is string && data.fullName.size() > 0 && data.fullName.size() <= 100 &&
+             data.grade is string && data.grade.size() > 0 && data.grade.size() <= 10 &&
+             data.section is string && data.section.size() > 0 && data.section.size() <= 10 &&
+             data.whatsapp is string && data.whatsapp.size() > 0 && data.whatsapp.size() <= 20 &&
+             data.email is string && data.email.size() > 0 && data.email.size() <= 100 &&
+             data.reason is string && data.reason.size() <= 1000 &&
+             data.status in ['pending', 'approved', 'rejected'] &&
+             (data.get('userId', '') is string && data.get('userId', '').size() <= 128) &&
+             data.createdAt is number;
+    }
+
+    function isValidActivity(data) {
+      return data.keys().hasAll(['title', 'date', 'createdAt']) &&
+             data.title is string && data.title.size() > 0 && data.title.size() <= 100 &&
+             data.date is string && data.date.size() > 0 && data.date.size() <= 50 &&
+             data.createdAt is number &&
+             (data.get('description', '') is string && data.get('description', '').size() <= 2000) &&
+             (data.get('imageUrl', '') is string && data.get('imageUrl', '').size() <= 500);
+    }
+
+    function isValidAchievement(data) {
+       return data.keys().hasAll(['title', 'year', 'createdAt']) &&
+             data.title is string && data.title.size() > 0 && data.title.size() <= 100 &&
+             data.year is string && data.year.size() > 0 && data.year.size() <= 10 &&
+             data.createdAt is number &&
+             (data.get('description', '') is string && data.get('description', '').size() <= 2000) &&
+             (data.get('imageUrl', '') is string && data.get('imageUrl', '').size() <= 500);
+    }
+
+    function isValidBoardMember(data) {
+      return data.keys().hasAll(['name', 'position', 'order', 'createdAt']) &&
+             data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
+             data.position is string && data.position.size() > 0 && data.position.size() <= 100 &&
+             data.order is number &&
+             data.createdAt is number &&
+             (data.get('imageUrl', '') is string && data.get('imageUrl', '').size() <= 500);
+    }
+
+    function isValidBoardRole(data) {
+      return data.keys().hasAll(['name', 'order', 'createdAt']) &&
+             data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
+             data.order is number &&
+             data.createdAt is number;
+    }
+
+    function isValidContent(data) {
+      return data.keys().hasAll(['title', 'body', 'type', 'updatedAt']) &&
+             data.title is string && data.title.size() > 0 && data.title.size() <= 100 &&
+             data.body is string && data.body.size() <= 10000 &&
+             data.type is string && data.type.size() > 0 && data.type.size() <= 50 &&
+             data.updatedAt is number;
+    }
+
+    function isValidNews(data) {
+      return data.keys().hasAll(['title', 'content', 'date', 'createdAt']) &&
+             data.title is string && data.title.size() > 0 && data.title.size() <= 200 &&
+             data.content is string && data.content.size() > 0 &&
+             data.date is string && data.date.size() > 0 && data.date.size() <= 50 &&
+             data.createdAt is number &&
+             (data.get('imageUrl', '') is string && data.get('imageUrl', '').size() <= 500);
+    }
+
+    function isValidGallery(data) {
+      return data.keys().hasAll(['title', 'activityId', 'photos', 'createdAt']) &&
+             data.title is string && data.title.size() > 0 && data.title.size() <= 200 &&
+             data.activityId is string && data.activityId.size() <= 128 &&
+             data.photos is list && data.photos.size() <= 100 &&
+             data.createdAt is number;
+    }
+
+    // Rules
+    match /users/{userId} {
+      allow read: if isAuthenticated() && (isAdmin() || request.auth.uid == userId);
+      
+      allow create: if isAuthenticated() && 
+                    isValidId(userId) &&
+                    isValidUser(incoming()) && (
+                      isDevEmail() || isAdmin()
+                    );
+                    
+      allow update: if isAuthenticated() && isValidUser(incoming()) && (
+        isAdmin() || 
+        (request.auth.uid == userId && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'updatedAt', 'email']))
+      );
+      
+      allow delete: if isAdmin();
+    }
+
+    match /registrations/{registrationId} {
+      allow read: if isManager();
+      allow create: if registrationId == incoming().whatsapp &&
+                    isValidRegistration(incoming()) && 
+                    incoming().status == 'pending';
+      allow update: if isManager() && isValidRegistration(incoming());
+      allow delete: if isManager();
+    }
+
+    match /activities/{activityId} {
+      allow read: if true;
+      allow create: if isManager() && isValidId(activityId) && isValidActivity(incoming());
+      allow update: if isManager() && isValidActivity(incoming());
+      allow delete: if isManager();
+    }
+
+    match /achievements/{achievementId} {
+      allow read: if true;
+      allow create: if isManager() && isValidId(achievementId) && isValidAchievement(incoming());
+      allow update: if isManager() && isValidAchievement(incoming());
+      allow delete: if isManager();
+    }
+
+    match /board_members/{memberId} {
+      allow read: if true;
+      allow create: if isManager() && isValidId(memberId) && isValidBoardMember(incoming());
+      allow update: if isManager() && isValidBoardMember(incoming());
+      allow delete: if isManager();
+    }
+
+    match /board_roles/{roleId} {
+      allow read: if true;
+      allow create: if isManager() && isValidId(roleId) && isValidBoardRole(incoming());
+      allow update: if isManager() && isValidBoardRole(incoming());
+      allow delete: if isManager();
+    }
+
+    match /content/{contentId} {
+      allow read: if true;
+      allow create: if isAdmin() && isValidId(contentId) && isValidContent(incoming());
+      allow update: if isAdmin() && isValidContent(incoming());
+      allow delete: if isAdmin();
+    }
+
+    match /settings/{docId} {
+      allow read: if true;
+      allow write: if isManager();
+    }
+
+    match /news/{newsId} {
+      allow read: if true;
+      allow create: if isManager() && isValidId(newsId) && isValidNews(incoming());
+      allow update: if isManager() && isValidNews(incoming());
+      allow delete: if isManager();
+    }
+
+    match /galleries/{galleryId} {
+      allow read: if true;
+      allow create: if isManager() && isValidId(galleryId) && isValidGallery(incoming());
+      allow update: if isManager() && isValidGallery(incoming());
+      allow delete: if isManager();
+    }
+  }
+}

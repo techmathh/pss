@@ -1,0 +1,111 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Registered users with their roles",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "role": { "type": "string", "enum": ["developer", "admin", "pengurus", "anggota", "guest"] },
+        "createdAt": { "type": "number" },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["email", "role", "createdAt"]
+    },
+    "Registration": {
+      "title": "Registration",
+      "description": "Registration forms submitted by students",
+      "type": "object",
+      "properties": {
+        "fullName": { "type": "string" },
+        "grade": { "type": "string" },
+        "section": { "type": "string" },
+        "whatsapp": { "type": "string" },
+        "email": { "type": "string" },
+        "reason": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected"] },
+        "userId": { "type": "string" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["fullName", "grade", "section", "whatsapp", "email", "reason", "status", "userId", "createdAt"]
+    },
+    "Activity": {
+      "title": "Activity",
+      "description": "Activity documentation and events",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "date": { "type": "string" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["title", "date", "createdAt"]
+    },
+    "Achievement": {
+      "title": "Achievement",
+      "description": "Organization achievements",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "year": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["title", "year", "createdAt"]
+    },
+    "BoardMember": {
+      "title": "Board Member",
+      "description": "Organization structure",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "position": { "type": "string" },
+        "order": { "type": "number" },
+        "imageUrl": { "type": "string" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["name", "position", "order", "createdAt"]
+    },
+    "AppContent": {
+      "title": "App Content",
+      "description": "General content like history, vision, etc.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "body": { "type": "string" },
+        "type": { "type": "string" },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["title", "body", "type", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "Stores user profiles and roles"
+    },
+    "/registrations/{registrationId}": {
+      "schema": { "$ref": "#/entities/Registration" },
+      "description": "Stores registration applications"
+    },
+    "/activities/{activityId}": {
+      "schema": { "$ref": "#/entities/Activity" },
+      "description": "Stores activity documentation"
+    },
+    "/achievements/{achievementId}": {
+      "schema": { "$ref": "#/entities/Achievement" },
+      "description": "Stores organization achievements"
+    },
+    "/board_members/{memberId}": {
+      "schema": { "$ref": "#/entities/BoardMember" },
+      "description": "Stores board members structure"
+    },
+    "/content/{contentId}": {
+      "schema": { "$ref": "#/entities/AppContent" },
+      "description": "Stores general app content"
+    }
+  }
+}
